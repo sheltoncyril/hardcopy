@@ -1,8 +1,10 @@
 """Wire it all together: sources -> dedupe -> rules -> render -> print."""
 import asyncio
 import logging
+import os
 
 import yaml
+from dotenv import load_dotenv
 
 from hardcopy.printers.console import ConsolePrinter
 from hardcopy.printers.escpos_printer import EscposPrinter
@@ -16,6 +18,9 @@ log = logging.getLogger("hardcopy")
 
 async def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    load_dotenv()  # local dev; no-op in Docker where env_file injects vars
+    if not os.environ.get("GITHUB_TOKEN"):
+        raise SystemExit("GITHUB_TOKEN not set — copy .env.example to .env and add your PAT")
     cfg = yaml.safe_load(open("config.yaml"))
 
     store = Store(cfg["store"]["path"])
