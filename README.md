@@ -10,9 +10,11 @@ Prints your important GitHub notifications on a receipt printer. Review request 
 ```bash
 cp .env.example .env          # add your GitHub PAT (notifications scope)
 cp config.example.yaml config.yaml
-pip install -e .
-python -m hardcopy            # console printer by default
+uv sync
+uv run python -m hardcopy     # console printer by default
 ```
+
+Tests: `uv run --extra dev pytest`
 
 ## Run on the cluster
 
