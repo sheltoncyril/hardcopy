@@ -1,0 +1,39 @@
+# hardcopy configuration. Copy to config.yaml (gitignored).
+
+printer:
+  # one of: console | usb | network
+  type: console
+  width: 32              # chars per line: 32 for 58mm paper, 42/48 for 80mm
+  usb:
+    vendor_id: 0x04b8    # find via `lsusb` (0x04b8 = Epson)
+    product_id: 0x0e28
+  network:
+    host: 192.168.1.50
+    port: 9100
+
+sources:
+  github:
+    enabled: true
+    poll_interval: 60          # seconds; server X-Poll-Interval overrides if larger
+    # token comes from GITHUB_TOKEN env var, never from this file
+
+quiet_hours:
+  enabled: true
+  start: "22:00"
+  end: "08:00"                 # queued events flush as a batch at `end`
+
+rules:
+  - match: {source: github, kind: review_requested}
+    action: print
+    priority: high
+  - match: {source: github, kind: mention}
+    action: print
+  - match: {source: github, kind: assign}
+    action: print
+  - match: {source: github, kind: ci_activity}
+    action: drop
+  - match: {}                  # default: drop everything unmatched
+    action: drop
+
+store:
+  path: ./data/hardcopy.db
