@@ -5,20 +5,15 @@ Review request comes in, receipt comes out.
 
 ```
  ┌──────────────────────────────┐
- │  REVIEW REQUESTED            │
+ │   [GITHUB] REVIEW REQUESTED  │
  │  ──────────────────────────  │
  │  fix(auth): token refresh    │
  │  race condition              │
+ │  acme/backend                │
+ │  Tue 07 Jul 14:32            │
  │                              │
- │  repo: acme/backend          │
- │  from: @alice                │
- │                              │
- │  ┌────────────┐              │
- │  │ ▄▄▄ ▄▄▄▄▄ │  scan to     │
- │  │ █▀█ █   █ │  open PR     │
- │  │ ▀▀▀ ▀▀▀▀▀ │              │
- │  └────────────┘              │
- │  2026-07-07 14:32            │
+ │         [  QR CODE  ]        │
+ │        scan to open PR       │
  └──────────────────────────────┘
 ```
 
@@ -34,9 +29,8 @@ Everything else gets dropped silently.
 - **Poll-based** -- no inbound network access, no webhooks needed
 - **Smart filtering** -- skip merged/closed PRs automatically, YAML rules for everything else
 - **Network or USB printers** -- anything ESC/POS compatible (most thermal receipt printers)
-- **WiFi bridge support** -- includes firmware for WT32-ETH01 to put Ethernet-only printers on WiFi
-- **Quiet hours** -- queue overnight, flush as a morning batch
 - **SQLite dedupe** -- never prints the same notification twice, survives restarts
+- **Docker ready** -- single-container deployment with Compose
 
 ## Quick start
 
@@ -81,11 +75,11 @@ USB printer: uncomment the `devices:` block in `compose.yaml` and pin to the nod
 
 ## WiFi bridge (optional)
 
-If your receipt printer is Ethernet-only, the `bridge/` directory contains
-firmware for a WT32-ETH01 (ESP32 + LAN8720A) that acts as a transparent
-L2 WiFi-to-Ethernet bridge. The printer appears directly on your WiFi network
-with its own MAC and IP. See [BRIDGE_AGENT_BRIEF.md](BRIDGE_AGENT_BRIEF.md)
-for setup instructions.
+If your receipt printer is Ethernet-only, you can use a WT32-ETH01
+(ESP32 + LAN8720A) as a transparent L2 WiFi-to-Ethernet bridge.
+The printer appears directly on your WiFi network with its own MAC and IP.
+See [wt32-eth01-wifi-bridge](https://github.com/sheltoncyril/wt32-eth01-wifi-bridge)
+for firmware and setup instructions.
 
 ## Architecture
 
@@ -94,7 +88,3 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for design details and data flow.
 ## Stack
 
 Python 3.12+, httpx, python-escpos, SQLite, Pydantic, Docker Compose
-
-## License
-
-MIT
