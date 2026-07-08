@@ -9,11 +9,11 @@
 ## Phase 2 — Real ink
 - [x] EscposPrinter (USB + network via python-escpos)
 - [x] Receipt template: header, wrapped title, repo/actor, QR of URL, cut
-- [ ] Spooler retry/backoff when printer is off
+- [x] Spooler retry/backoff when printer is off
 
 ## Phase 3 — Rules & comfort
 - [x] Full YAML rules (repo globs, priorities, drop-by-default)
-- [ ] Quiet hours with morning batch flush
+- [x] Quiet hours with morning batch flush
 - [ ] `/healthz` endpoint + structured logs
 
 ## Phase 4 — Cluster service
@@ -35,3 +35,4 @@
 - 2026-07-07: Python + python-escpos; poll-first, webhook-ready; Docker Compose; SQLite for all state.
 - 2026-07-07: WT32-ETH01 WiFi bridge for Ethernet receipt printer (ESP-IDF sta2eth, L2 forwarding).
 - 2026-07-08: Added PR state check — skip merged/closed before printing to avoid wasting paper.
+- 2026-07-08: Actor extraction from GitHub API (latest_comment_url), quiet hours, spooler retry with backoff.

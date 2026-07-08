@@ -2,10 +2,12 @@
 import asyncio
 import logging
 import os
+from datetime import datetime, time
 
 import yaml
 from dotenv import load_dotenv
 
+from hardcopy.models import Event
 from hardcopy.printers.console import ConsolePrinter
 from hardcopy.printers.escpos_printer import EscposPrinter
 from hardcopy.render import render
@@ -14,6 +16,34 @@ from hardcopy.sources.github_poller import GitHubPoller
 from hardcopy.store import Store
 
 log = logging.getLogger("hardcopy")
+
+
+def is_quiet(cfg: dict) -> bool:
+    """Return True if current local time falls within the quiet-hours window."""
+    qh = cfg.get("quiet_hours", {})
+    if not qh.get("enabled"):
+        return False
+    now = datetime.now().time()
+    start = time.fromisoformat(qh["start"])
+    end = time.fromisoformat(qh["end"])
+    if start <= end:
+        return start <= now <= end
+    # Midnight crossing (e.g. 22:00 -> 08:00)
+    return now >= start or now <= end
+
+
+async def drain_queue(store: Store, printer, width: int) -> None:
+    """Print all queued events. Stop on first failure (printer still down)."""
+    queued = store.dequeue_all()
+    for event_id, event_json in queued:
+        try:
+            event = Event.model_validate_json(event_json)
+            printer.print(render(event, width))
+            store.remove_queued(event_id)
+            log.info("drain %s %s", event.kind, event.title)
+        except Exception:
+            log.warning("drain failed — printer still offline, %d remain", len(queued))
+            break
 
 
 async def main() -> None:
@@ -30,6 +60,7 @@ async def main() -> None:
         else EscposPrinter(cfg["printer"])
     )
     width = cfg["printer"].get("width", 32)
+    consecutive_failures = 0
 
     # Phase 1: single source. Later: asyncio.gather over all enabled sources.
     source = GitHubPoller(cfg["sources"]["github"]["poll_interval"])
@@ -42,11 +73,24 @@ async def main() -> None:
         if priority is None:
             log.info("drop  %s %s", event.kind, event.title)
             continue
+
+        if is_quiet(cfg):
+            store.enqueue(event.id, event.model_dump_json())
+            log.info("queue %s %s (quiet hours)", event.kind, event.title)
+            continue
+
         log.info("print %s %s", event.kind, event.title)
         try:
             printer.print(render(event, width))
+            consecutive_failures = 0
+            # After a successful print, drain any queued events
+            await drain_queue(store, printer, width)
         except Exception:
-            log.exception("print failed — Phase 2 spooler will add retry/backoff")
+            consecutive_failures += 1
+            backoff = min(2**consecutive_failures * 5, 300)
+            log.exception("print failed — queuing, retry in %ds", backoff)
+            store.enqueue(event.id, event.model_dump_json())
+            await asyncio.sleep(backoff)
 
 
 if __name__ == "__main__":

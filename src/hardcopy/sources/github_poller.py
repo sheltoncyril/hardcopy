@@ -15,10 +15,10 @@ from datetime import datetime, timezone
 
 import httpx
 
-log = logging.getLogger("hardcopy")
-
 from hardcopy.models import Event
 from hardcopy.sources.base import Source
+
+log = logging.getLogger("hardcopy")
 
 API = "https://api.github.com/notifications"
 
@@ -50,9 +50,10 @@ class GitHubPoller(Source):
                     if resp.status_code == 200:
                         self._last_modified = resp.headers.get("Last-Modified")
                         for thread in resp.json():
-                            if await self._is_closed(client, thread):
+                            skip, actor = await self._enrich(client, thread)
+                            if skip:
                                 continue
-                            yield self._to_event(thread)
+                            yield self._to_event(thread, actor)
                     # 304: nothing new; anything else: log and retry next tick
                 except httpx.HTTPError:
                     pass  # transient; next poll will retry
@@ -60,28 +61,45 @@ class GitHubPoller(Source):
                 await asyncio.sleep(interval)
 
     @staticmethod
-    async def _is_closed(client: httpx.AsyncClient, thread: dict) -> bool:
-        """Return True if the subject (PR/issue) is merged or closed."""
+    async def _enrich(
+        client: httpx.AsyncClient, thread: dict
+    ) -> tuple[bool, str | None]:
+        """Check if subject is closed/merged and extract the actor.
+
+        Returns (skip, actor) — skip=True means the notification should be dropped.
+        """
         subject = thread.get("subject", {})
-        if subject.get("type") not in ("PullRequest", "Issue"):
-            return False
-        api_url = subject.get("url")
-        if not api_url:
-            return False
-        try:
-            resp = await client.get(api_url)
-            if resp.status_code == 200:
-                data = resp.json()
-                state = data.get("state", "open")
-                if state == "closed" or data.get("merged"):
-                    log.debug("skip closed/merged: %s", subject.get("title"))
-                    return True
-        except httpx.HTTPError:
-            pass
-        return False
+        actor: str | None = None
+
+        # Fetch the subject (PR/issue) to check state and get actor
+        if subject.get("type") in ("PullRequest", "Issue"):
+            api_url = subject.get("url")
+            if api_url:
+                try:
+                    resp = await client.get(api_url)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if data.get("state") == "closed" or data.get("merged"):
+                            log.debug("skip closed/merged: %s", subject.get("title"))
+                            return True, None
+                        actor = data.get("user", {}).get("login")
+                except httpx.HTTPError:
+                    pass
+
+        # Try latest_comment_url for a more specific actor
+        comment_url = subject.get("latest_comment_url")
+        if comment_url:
+            try:
+                resp = await client.get(comment_url)
+                if resp.status_code == 200:
+                    actor = resp.json().get("user", {}).get("login") or actor
+            except httpx.HTTPError:
+                pass
+
+        return False, actor
 
     @staticmethod
-    def _to_event(thread: dict) -> Event:
+    def _to_event(thread: dict, actor: str | None = None) -> Event:
         subject = thread.get("subject", {})
         # API url -> human url (best effort; QR falls back to repo page)
         html_url = (subject.get("url") or "").replace(
@@ -93,6 +111,7 @@ class GitHubPoller(Source):
             kind=thread.get("reason", "unknown"),
             title=subject.get("title", "(no title)"),
             repo=thread.get("repository", {}).get("full_name"),
+            actor=actor,
             url=html_url or thread.get("repository", {}).get("html_url"),
             created_at=datetime.fromisoformat(
                 thread.get("updated_at", datetime.now(timezone.utc).isoformat())

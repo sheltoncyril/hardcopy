@@ -29,6 +29,8 @@ Everything else gets dropped silently.
 - **Poll-based** -- no inbound network access, no webhooks needed
 - **Smart filtering** -- skip merged/closed PRs automatically, YAML rules for everything else
 - **Network or USB printers** -- anything ESC/POS compatible (most thermal receipt printers)
+- **Quiet hours** -- queue overnight, flush as a morning batch
+- **Spooler retry** -- print failures are queued and retried with exponential backoff
 - **SQLite dedupe** -- never prints the same notification twice, survives restarts
 - **Docker ready** -- single-container deployment with Compose
 
@@ -88,3 +90,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for design details and data flow.
 ## Stack
 
 Python 3.12+, httpx, python-escpos, SQLite, Pydantic, Docker Compose
+
+## License
+
+MIT — see [LICENSE](LICENSE)
