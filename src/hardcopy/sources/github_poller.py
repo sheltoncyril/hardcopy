@@ -8,11 +8,14 @@ API notes:
   review_requested, mention, assign, author, ci_activity, subscribed, ...
 """
 import asyncio
+import logging
 import os
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 
 import httpx
+
+log = logging.getLogger("hardcopy")
 
 from hardcopy.models import Event
 from hardcopy.sources.base import Source
@@ -47,12 +50,35 @@ class GitHubPoller(Source):
                     if resp.status_code == 200:
                         self._last_modified = resp.headers.get("Last-Modified")
                         for thread in resp.json():
+                            if await self._is_closed(client, thread):
+                                continue
                             yield self._to_event(thread)
                     # 304: nothing new; anything else: log and retry next tick
                 except httpx.HTTPError:
                     pass  # transient; next poll will retry
 
                 await asyncio.sleep(interval)
+
+    @staticmethod
+    async def _is_closed(client: httpx.AsyncClient, thread: dict) -> bool:
+        """Return True if the subject (PR/issue) is merged or closed."""
+        subject = thread.get("subject", {})
+        if subject.get("type") not in ("PullRequest", "Issue"):
+            return False
+        api_url = subject.get("url")
+        if not api_url:
+            return False
+        try:
+            resp = await client.get(api_url)
+            if resp.status_code == 200:
+                data = resp.json()
+                state = data.get("state", "open")
+                if state == "closed" or data.get("merged"):
+                    log.debug("skip closed/merged: %s", subject.get("title"))
+                    return True
+        except httpx.HTTPError:
+            pass
+        return False
 
     @staticmethod
     def _to_event(thread: dict) -> Event:
