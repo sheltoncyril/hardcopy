@@ -106,7 +106,7 @@ class GitHubPoller(Source):
             "api.github.com/repos", "github.com"
         ).replace("/pulls/", "/pull/")
         return Event(
-            id=f"github:thread:{thread['id']}:{thread.get('updated_at', '')}",
+            id=f"github:thread:{thread['id']}",
             source="github",
             kind=thread.get("reason", "unknown"),
             title=subject.get("title", "(no title)"),
